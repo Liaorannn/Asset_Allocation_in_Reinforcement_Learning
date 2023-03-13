@@ -45,19 +45,18 @@ class DiscreteEnv(Env):
 
 
 class AssetAllocation(DiscreteEnv):
+    # Parameter Settings
     aversion_rate: float = 0.01
     riskless_return: float = 0.05
     risky_return: dict = {0.4: 0.5, 0.6: -0.3}  # 风险资产的Bernoulli分布参数 [p: corresponding_return]
-
-    # action_space = [0.2, 0.5, 0.8]  # Allocable weight in risky assets
     action_space = [0.2, 0.8]
 
     def __init__(self, init_wealth=10, T=10):
         self.t = None
         self.s = None
         self.initial_wealth = init_wealth
-        transition_p = {}
-        state_space = {}
+        transition_p = {}  # transition_p[time][wealth][action] = [(prob, next_w, reward, done), ...]
+        state_space = {}  # state_space[t] = [state1, state2, ...]
         # Generate state space to store state between time step
         for i in range(T):
             if i == 0:
@@ -66,7 +65,6 @@ class AssetAllocation(DiscreteEnv):
                 state_space[i] = []
 
         # Generate state space and transition prob
-
         for i in range(1, T):
             transition_p[i - 1] = {}
             for w in state_space[i - 1]:  # 提取出前一时刻的wealth
@@ -77,13 +75,6 @@ class AssetAllocation(DiscreteEnv):
                         w_ = w * act * (1 + r) + w * (1 - act) * (1 + self.riskless_return)
                         w_ = np.round(w_, 3)  # 保留3位小数
                         state_space[i] += [w_]  # next state
-
-                        # if i == T-1:
-                        #     reward = self._reward_compute(w_, self.aversion_rate)
-                        #     transition_p[i-1][w][act] += [(p, w_, reward, True)]  # (prob, s', imm_reward, done)
-                        # else:
-                        #     reward = 0
-                        #     transition_p[i-1][w][act] += [(p, w_, reward, False)]
                         reward = 0
                         transition_p[i - 1][w][act] += [(p, w_, reward, False)]
 
@@ -112,8 +103,6 @@ class AssetAllocation(DiscreteEnv):
         return f'state wealth: {self.s}, t: {self.t}'
 
     def step(self, action):
-        # self.t += 1
-        # return super(AssetAllocation, self).step(action)
         transition = self.transition_P[self.t][self.s][action]  # [(prob, s', r, done), ...]
         i = np.random.choice(len(transition), p=[t_[0] for t_ in transition])
         p, next_s, r, d = transition[i]
@@ -128,14 +117,21 @@ class AgentValueIteration:
     def __init__(self, env):
         self.env = env
         # Initialize state value & random policy
-        self.value_dict = {}
-        self.policy = {}
+        self.value_dict = {}  # value_dict[time] = {state1: 0, state2: 0, ...}
+        self.policy = {}  # policy[time] = {state1: act1, state2:act2, ...}
 
         for t_, s_list in env.state_space.items():
             self.value_dict[t_] = {ss_: 0 for ss_ in s_list}
             self.policy[t_] = {ss_: np.random.choice(self.env.action_space) for ss_ in s_list}
 
     def _action_computation(self, t_, s_, mode=1):
+        """
+        Used to get the best action and the corresponding action_value at each state (time, wealth)
+        :param t_: state t
+        :param s_: state wealth
+        :param mode: return the whole action value dict (used to plot the state-action table) or just the best
+        :return:
+        """
         action_values = {act: 0 for act in self.env.action_space}
         for a_ in self.env.action_space:
             for prob, next_state, reward, done in self.env.transition_P[t_][s_][a_]:
@@ -171,6 +167,13 @@ class AgentValueIteration:
         return self.policy
 
     def state_action_value(self):
+        """
+        Used to draw the state_action value table
+        :return: pd.Dataframe( act1, act2, act3
+             time1   state1     V1    V2    V3
+             time1   state2     V4    V5    V6
+             time2   state3     V7    V8    V9)
+        """
         s_a_table = {}
         for t, s_list in self.env.state_space.items():
             s_a_table[t] = pd.DataFrame(columns=['state'] + ample.action_space)
@@ -184,6 +187,7 @@ class AgentValueIteration:
         return s_a_table
 
     def policy_table(self):
+        """Draw the self-policy in dataframe"""
         table = {}
         for t, s_a in self.policy.items():
             table[t] = pd.DataFrame(columns=['state'] + ample.action_space)
@@ -211,6 +215,7 @@ class AgentPolicyIteration:
             # 每个t时刻的下policy是该时刻下state作为key，（prob，act）作为value的字典的字典
 
     def _action_computation(self, t_, s_, mode=1):
+        """Same as above"""
         action_values = {act: 0 for act in self.env.action_space}
         for a_ in self.env.action_space:
             for prob, next_state, reward, done in self.env.transition_P[t_][s_][a_]:
@@ -235,14 +240,14 @@ class AgentPolicyIteration:
             convergence but only k steps.
             - Updating self.value_dict directly means that the initial state value of each policy
             only needs to inherit the final policy value of the previous iteration.
-        :param truncated_k: iter steps
+        :param truncated_k: iter steps.
         :return: Difference of the policy state value between each iteration
         """
         rep_times = 0
         delta = 0
-        while rep_times < truncated_k:
+        while rep_times < truncated_k:  # Iter the state value computation k times
             delta = 0
-            for t, s_list in self.env.state_space.items():
+            for t, s_list in self.env.state_space.items():  # for each state(time, s)
                 for s in s_list:
                     s_policy_value = 0
                     for a_prob, act in self.policy[t][s]:
@@ -280,6 +285,7 @@ class AgentPolicyIteration:
         return self.policy
 
     def policy_table(self):
+        """Draw the policy in dataframe, todo in future"""
         ...
 
 
@@ -296,6 +302,7 @@ class AgentMC:
             # Initial Policy is deterministic
             self.policy[t_] = {ss_: [(1, np.random.choice(self.env.action_space))] for ss_ in s_list}
             for ss_ in s_list:
+                # Since MC method needs to compute the mean of sampling Q-value, using list to store each sample result
                 self.Q_table[(t_, ss_)] = {act: [0] for act in self.env.action_space}
 
     def episode(self, policy):
@@ -324,10 +331,10 @@ class AgentMC:
             t += 1
         return trajectory
 
-    def _best_action_computation(self, t, s):
+    def _best_action_computation(self, t, s):  # Compute the best action based on current Q-table
         action_values = {}
         for act in self.env.action_space:
-            action_values[act] = np.mean(self.Q_table[(t, s)][act])  # 对列表求mean
+            action_values[act] = np.mean(self.Q_table[(t, s)][act])  # MC method needs the mean of sampling q-value
         best_a = max(action_values, key=lambda x: action_values[x])
         best_a_v = action_values.get(best_a)
         return best_a, best_a_v
@@ -349,7 +356,7 @@ class AgentMC:
                 print(f'Episode Round: {ith} / {episode_num}')
 
             g = 0
-            trajectory = self.episode(self.policy)
+            trajectory = self.episode(self.policy)  # Generate the episode sample
 
             for step in trajectory[::-1]:  # Backward Computation
                 t, s, act, reward = step
@@ -362,9 +369,6 @@ class AgentMC:
                 # epsilon-policy improvement
                 self._policy_improvement(t, s, best_a)
         return self.policy
-
-    def policy_table(self):
-        ...
 
 
 class AgentSARSA:
@@ -385,7 +389,6 @@ class AgentSARSA:
                 self.Q_table[(t_, ss_)] = {act: 0 for act in env.action_space}
                 # Equal initial action Prob
                 self.policy[t_][ss_] = [(1 / env.action_dim, act) for act in env.action_space]
-                # self.policy[t_][ss_] = [(1, self.env.action_space[0])]
 
     def _best_action_computation(self, t, s):
         action_values = self.Q_table[(t, s)]
@@ -426,11 +429,12 @@ class AgentSARSA:
                     break
                 next_act = self._policy_action_choose(t + 1, next_s)
 
+                # Compute the TD target and update q table
                 td_target = r + self.DISCOUNT_FACTOR * self.Q_table[(t + 1, next_s)][next_act]
                 self.Q_table[(t, s)][act] += alpha * (self.Q_table[(t, s)][act] - td_target)
 
                 best_a, _ = self._best_action_computation(t, s)
-                self.policy[t][s] = self._policy_improvement(best_a)
+                self.policy[t][s] = self._policy_improvement(best_a)  # Update self-policy
 
 
 class AgentQLearning:
@@ -491,7 +495,7 @@ class AgentQLearning:
                 p_a.append((self.exploring_p, act))
         return p_a
 
-    def qlearning_iteration(self, episode_num=10000, alpha=0.1):
+    def qlearning_iteration(self, episode_num=10000, alpha=0.1):  # ON-policy
         for ith in range(1, episode_num + 1):
             if ith % 1000 == 0:
                 print(f'Episode Round: {ith} / {episode_num}')
@@ -512,6 +516,12 @@ class AgentQLearning:
                 self.policy[t][s] = self._policy_improvement(best_a)
 
     def qlearning_iteration_Off_policy(self, episode_num=10000, alpha=0.1):
+        """
+        Off-policy version, code is as same as above, only use different sampling policy to draw data.
+        :param episode_num:
+        :param alpha:
+        :return:
+        """
         # Sampling Policy just as same as the initial policy
         sample_policy = copy.deepcopy(self.policy)
 
