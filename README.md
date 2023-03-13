@@ -33,6 +33,8 @@ in RL, please raise issue if you find sth wrong._
 The **objective** of the project is to find the optimal policy, which describe how much money(action) you 
 should invest in the risky asset under different time & total wealth(states).
 
+****
+
 ## **Project Layout**
 The project code can be divided into 8 classes, first three classes complete the definition of
 the basic environment of the asset allocation, the rest classes complete the implementation of 
@@ -57,6 +59,7 @@ using For loop, then use Dict to restore the transition probabilistic matrix and
 the states space(see the AssetAllocation class). I also implement the step and reset function in the class. After finish 
 the env setting, we can generate agent algorithm.
 
+***
 
 ### **Algorithm Code**
 I complete 5 different algorithm in the project. First two are model-based method, the reset are model free method. In 
@@ -69,7 +72,7 @@ Under this algorithm, we assume that we already know the transfer prob, so we ca
 transition probabilistic at each state (time, wealth_t). Therefore, we can easily compute state value and action value, 
 and thus get the optimal state-action value and the optimal policy through the iteration form of 
 the Bellman Optimal Equation.
-I complete the **value iteration method** and the **truncated policy iteration method**.
+I complete the **Value Iteration Method** and the **Truncated Policy Iteration Method**.
 
 - Value Iteration is just the iterative form to solve BOE.
 - Policy Iteration first need to evaluate the initial policy, which is like Value Iteration but under certain policy. After
@@ -78,6 +81,7 @@ convergence but only k steps)
 
 _The Pseudocode can be checked in the above Book link._
 
+***
 #### **MC Exploring Start with Epsilon-Greedy policy**
 Under this algorithm, we can only estimate the transition prob using data sampling. Thus, I write an episode function to 
 generate the data. The rest is just as the pseudocode.
@@ -88,6 +92,7 @@ optimal policy and final q-table.
 
 _The Pseudocode can be checked in the above Book link._
 
+***
 #### **TD SARSA**
 Unlike the MC method have to compute the mean of q value, which means we have to update policy after 
 we get all data, the TD SARSA method allow us to compute q value and update policy once we have 
@@ -98,6 +103,7 @@ hope to compete them in the future.
 
 _The Pseudocode can be checked in the above Book link._
 
+***
 #### **TD Q-Learning**
 Unlike the TD SARSA have to get the experience of (s, a, r, s, a), the TD Q-learning method only needs
 (s, a, r, s), which decrease the variance and become more effective.
@@ -107,6 +113,7 @@ between these two method is whether the update policy is as same as the sampling
 
 _The Pseudocode can be checked in the above Book link._
 
+****
 ### **Result Analysis**
 The codes running results can be checked in the [jupyter file](test0309.ipynb).
 
@@ -119,9 +126,9 @@ As for the compares of different algorithms:
 truncated k.
 - Some states in MC method can not converge to the optimal policy, which may have been affected by the number of 
 sampling episode.
-***
+
 
 _To be done:_
-- _Complete MC Exploring Starts with importance sampling_
-- _Try Expected SARSA and n-step SARSA algorithm_
-- _Complicate the env setting and expand it to continuous state-action problem._
+- [ ] _Complete MC Exploring Starts with importance sampling_
+- [ ] _Try Expected SARSA and n-step SARSA algorithm_
+- [ ] _Complicate the env setting and expand it to continuous state-action problem._
